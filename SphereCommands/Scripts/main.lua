@@ -11,6 +11,25 @@ local function sendPersonalLog(playerController, msg)
     end
 end
 
+local function IsServerSide()
+    local PalUtilities = StaticFindObject("/Script/Pal.Default__PalUtility")
+    return PalUtilities and PalUtilities:IsValid() and PalUtilities:IsDedicatedServer(PalUtilities)
+end
+
+local function spawnItem(playerState, item)
+    local quantity = 1
+    if string.find(item, ":") then
+        item, quantity = string.match(item, "(.*):(.*)")
+    end
+
+    local inventory = playerState:GetInventoryData()
+    if IsServerSide() then
+        inventory:AddItem_ServerInternal(FName(item), quantity, false)
+    else
+        inventory:RequestAddItem(FName(item), quantity, false)
+    end
+end
+
 local function IsPlayerAdmin(playerState)
     return playerState and playerState:IsValid() and playerState:GetPlayerController().bAdmin
 end
@@ -140,11 +159,22 @@ RegisterHook("/Script/Pal.PalPlayerState:EnterChat_Receive", function(ctx, chat)
             if noclipPlayers[playerId] then
                 noclipPlayers[playerId] = nil
                 PlayerCharacter:SetSpectatorMode(false)
-                sendPersonalLog(PlayerController, "Left Spectator Mode")
+                sendPersonalLog(PlayerController, "Left noclip mode.")
             else
                 noclipPlayers[playerId] = true
                 PlayerCharacter:SetSpectatorMode(true)
-                sendPersonalLog(PlayerController, "Entered Spectator Mode")
+                sendPersonalLog(PlayerController, "Entered noclip mode.")
+            end
+
+        elseif command == "sgive" then
+            if not IsPlayerAdmin(playerState) then
+                sendPersonalLog(PlayerController, "You do not have permission")
+                return
+            end
+
+            if not rest or rest == "" then return end
+            for item in rest:gmatch("%S+") do
+                spawnItem(playerState, item)
             end
 
         elseif command == "unstuck" then
