@@ -30,6 +30,23 @@ local function spawnItem(playerState, item)
     end
 end
 
+local function giveExperience(PlayerState, quantity)
+    local PlayerController = PlayerState:GetPlayerController()
+    local PlayerCharacter = PlayerController and PlayerController.Pawn
+    if not PlayerCharacter or not PlayerCharacter:IsValid() then return end
+
+    local WorldContext = PlayerCharacter:GetWorld()
+    if not WorldContext or not WorldContext:IsValid() then return end
+
+    local Location = PlayerCharacter:K2_GetActorLocation()
+    local ExpRadius = 1000.0
+
+    local PalUtility = StaticFindObject("/Script/Pal.Default__PalUtility")
+    if not PalUtility or not PalUtility:IsValid() then return end
+
+    PalUtility:GiveExpToAroundPlayerCharacter(WorldContext, Location, ExpRadius, quantity, true)
+end
+
 local function IsPlayerAdmin(playerState)
     return playerState and playerState:IsValid() and playerState:GetPlayerController().bAdmin
 end
@@ -98,11 +115,17 @@ RegisterHook("/Script/Pal.PalPlayerState:EnterChat_Receive", function(ctx, chat)
                 sendPersonalLog(PlayerController, "Entered spectator mode.")
             end
 
-        elseif command == "sannounce" and rest ~= "" then
+        elseif command == "sannounce" then
             if not IsPlayerAdmin(playerState) then
                 sendPersonalLog(PlayerController, "You do not have permission")
                 return
             end
+
+            if not rest or rest == "" then
+                sendPersonalLog(PlayerController, "Usage: /sannounce <message>")
+                return
+            end
+
             BroadcastServerMessage(rest)
             sendPersonalLog(PlayerController, "Announced server wide message.")
 
@@ -172,10 +195,29 @@ RegisterHook("/Script/Pal.PalPlayerState:EnterChat_Receive", function(ctx, chat)
                 return
             end
 
-            if not rest or rest == "" then return end
+            if not rest or rest == "" then
+                sendPersonalLog(PlayerController, "Usage: /sgive item[:amount] [item2[:amount] ...]")
+                return
+            end
+
             for item in rest:gmatch("%S+") do
                 spawnItem(playerState, item)
             end
+
+        elseif command == "sexp" then
+            if not IsPlayerAdmin(playerState) then
+                sendPersonalLog(PlayerController, "You do not have permission")
+                return
+            end
+
+            local amount = tonumber(rest)
+            if not amount then
+                sendPersonalLog(PlayerController, "Usage: /sexp <amount>")
+                return
+            end
+
+            giveExperience(playerState, amount)
+            sendPersonalLog(PlayerController, string.format("Granted %d EXP to your party.", amount))
 
         elseif command == "unstuck" then
             if PlayerController and PlayerController:IsValid() then
