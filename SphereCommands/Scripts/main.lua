@@ -2,6 +2,8 @@ local UEHelpers = require("UEHelpers")
 local logMgr = FindFirstOf("BP_PalLogManager_C")
 
 local godmodePlayers = {}
+local noclipPlayers = {}
+local flyModePlayers = {}
 
 local function sendPersonalLog(playerController, msg)
     if playerController and playerController:IsValid() and logMgr then
@@ -67,7 +69,7 @@ RegisterHook("/Script/Pal.PalPlayerState:EnterChat_Receive", function(ctx, chat)
     if command then
         command = command:lower()
 
-        if command == "snoclip" then
+        if command == "sspectate" then
             if not IsPlayerAdmin(playerState) then
                 sendPersonalLog(PlayerController, "You do not have permission")
                 return
@@ -91,17 +93,64 @@ RegisterHook("/Script/Pal.PalPlayerState:EnterChat_Receive", function(ctx, chat)
                 return
             end
 
-            local arg = rest:lower()
             local playerId = playerState:GetPlayerId()
+            if not playerId then return end
 
-            if arg == "enable" then
-                godmodePlayers[playerId] = true
-                sendPersonalLog(PlayerController, "Godmode enabled.")
-            elseif arg == "disable" then
+            if godmodePlayers[playerId] then
                 godmodePlayers[playerId] = nil
                 sendPersonalLog(PlayerController, "Godmode disabled.")
             else
-                sendPersonalLog(PlayerController, "Usage: /sgodmode enable - /sgodmode disable")
+                godmodePlayers[playerId] = true
+                sendPersonalLog(PlayerController, "Godmode enabled.")
+            end
+
+        elseif command == "sfly" then
+            if not IsPlayerAdmin(playerState) then
+                sendPersonalLog(PlayerController, "You do not have permission")
+                return
+            end
+
+            local playerId = playerState:GetPlayerId()
+            if not playerId then return end
+
+            if PlayerController and PlayerController:IsValid() then
+                if flyModePlayers[playerId] then
+                    flyModePlayers[playerId] = nil
+                    PlayerController:EndFlyToServer()
+                    sendPersonalLog(PlayerController, "Fly mode has been deactivated.")
+                else
+                    flyModePlayers[playerId] = true
+                    PlayerController:StartFlyToServer()
+                    sendPersonalLog(PlayerController, "Fly mode has been activated.")
+                end
+            end
+
+        elseif command == "snoclip" then
+            if not IsPlayerAdmin(playerState) then
+                sendPersonalLog(PlayerController, "You do not have permission")
+                return
+            end
+
+            local playerId = playerState:GetPlayerId()
+            if not playerId then return end
+
+            local PlayerCharacter = FindFirstOf("PalPlayerCharacter")
+            if not PlayerCharacter or not PlayerCharacter:IsValid() then return end
+
+            if noclipPlayers[playerId] then
+                noclipPlayers[playerId] = nil
+                PlayerCharacter:SetSpectatorMode(false)
+                sendPersonalLog(PlayerController, "Left Spectator Mode")
+            else
+                noclipPlayers[playerId] = true
+                PlayerCharacter:SetSpectatorMode(true)
+                sendPersonalLog(PlayerController, "Entered Spectator Mode")
+            end
+
+        elseif command == "unstuck" then
+            if PlayerController and PlayerController:IsValid() then
+                PlayerController:TeleportToSafePoint_ToServer()
+                sendPersonalLog(PlayerController, "You have been teleported back to base!")
             end
         end
     end
