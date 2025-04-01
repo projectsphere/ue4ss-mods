@@ -1,6 +1,7 @@
 local config = require("config")
 local Logger = {}
 local palUtility = nil
+local playerName = {}
 
 local function GetPalUtility()
     if not palUtility or not palUtility:IsValid() then
@@ -119,6 +120,43 @@ function Logger.DeathLogs(deadInfo, context)
     end
 end
 
+function Logger.ConnectLogs(character)
+    if character and character:IsValid() and character.PlayerState and character.PlayerState:IsValid() then
+        local name = GetPlayerName(character.PlayerState)
+        playerName[character:GetFullName()] = name
+
+        local connectMessage = string.format("%s has connected.", name)
+        local fileHandler = io.open("sphere/connections.txt", "a")
+        if fileHandler then
+            fileHandler:write(connectMessage .. "\n")
+            fileHandler:close()
+        end
+
+        if config.BroadcastConnects == true then
+            SendAnnounce(character, connectMessage)
+        end
+    end
+end
+
+function Logger.DisconnectLogs(character)
+    if character and character:IsValid() then
+        local name = playerName[character:GetFullName()] or "Unknown"
+        local disconnectMessage = string.format("%s has disconnected.", name)
+
+        local fileHandler = io.open("sphere/connections.txt", "a")
+        if fileHandler then
+            fileHandler:write(disconnectMessage .. "\n")
+            fileHandler:close()
+        end
+
+        if config.BroadcastDisconnects == true then
+            SendAnnounce(character, disconnectMessage)
+        end
+
+        playerName[character:GetFullName()] = nil
+    end
+end
+
 RegisterHook("/Script/Pal.PalPlayerState:EnterChat_Receive", function(arg1, arg2)
     local playerState = arg1:get()
     local chatMessage = arg2:get()
@@ -131,41 +169,14 @@ RegisterHook("/Game/Pal/Blueprint/Component/DamageReaction/BP_AIADamageReaction.
     Logger.DeathLogs(deadInfo, context)
 end)
 
-RegisterHook("/Script/Pal.PalPlayerCharacter:OnCompleteInitializeParameter", function(ctx, char)
+RegisterHook("/Script/Pal.PalPlayerCharacter:OnCompleteInitializeParameter", function(ctx, character)
     local player = ctx:get()
-    if player and player.PlayerState and player.PlayerState:IsValid() then
-        local playerName = GetPlayerName(player.PlayerState)
-        local connectMessage = string.format("%s has connected.", playerName)
-
-        local fileHandler = io.open("sphere/connections.txt", "a")
-        if fileHandler then
-            fileHandler:write(connectMessage .. "\n")
-            fileHandler:close()
-        end
-
-        if config.BroadcastConnects == true then
-            SendAnnounce(player, connectMessage)
-        end
-    end
+    Logger.ConnectLogs(player)
 end)
 
 RegisterHook("/Game/Pal/Blueprint/Character/Player/Female/BP_Player_Female.BP_Player_Female_C:ReceiveEndPlay", function(ctx)
-    local controller = ctx:get()
-    local playerState = controller and controller.PlayerState
-    local playerName = playerState and GetPlayerName(playerState) or "Unknown"
-
-    local disconnectMessage = string.format("%s has disconnected.", playerName)
-
-    local fileHandler = io.open("sphere/connections.txt", "a")
-    if fileHandler then
-        fileHandler:write(disconnectMessage .. "\n")
-        fileHandler:close()
-    end
-
-    if config.BroadcastDisconnects == true then
-        SendAnnounce(controller, disconnectMessage)
-    end
+    local player = ctx:get()
+    Logger.DisconnectLogs(player)
 end)
-
 
 return Logger
