@@ -315,4 +315,40 @@ function commands.handleUnstuck(playerState)
     end
 end
 
+function commands.handleTime(playerState, rest)
+	local PlayerController = playerState:GetPlayerController()
+	if not rest or rest == "" then
+		commands.sendSystemAnnounce(PlayerController, "Usage: !time <hour>")
+		return
+	end
+
+	local hour = tonumber(rest)
+	if not hour or hour < 0 or hour > 23 then
+		commands.sendSystemAnnounce(PlayerController, "Invalid hour. Must be between 0 and 23.")
+		return
+	end
+
+	local timeManager = FindFirstOf("PalTimeManager")
+	if not timeManager or not timeManager:IsValid() then
+		commands.sendSystemAnnounce(PlayerController, "PalTimeManager not found.")
+		return
+	end
+
+	timeManager:SetGameTime_FixDay(hour)
+	local timeStr = timeManager:GetDebugTimeString():ToString()
+	commands.sendSystemAnnounce(PlayerController, "Game time set. Current time: " .. timeStr)
+end
+
+function commands.handleCurrentTime(playerState)
+	local PlayerController = playerState:GetPlayerController()
+	local timeManager = FindFirstOf("PalTimeManager")
+	if not timeManager or not timeManager:IsValid() then
+		commands.sendSystemAnnounce(PlayerController, "PalTimeManager not found.")
+		return
+	end
+
+	local timeStr = timeManager:GetDebugTimeString():ToString()
+	commands.sendSystemAnnounce(PlayerController, "Current Game Time: " .. timeStr)
+end
+
 return commands
