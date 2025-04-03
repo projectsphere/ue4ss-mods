@@ -99,10 +99,16 @@ function logic.chatHook(ctx, chat)
                 return
             end
             commands.handleTime(playerState, rest)
+        elseif cmd == "slay" then
+            if not commands.IsPlayerAdmin(playerState) then
+                commands.sendSystemAnnounce(PlayerController, "You do not have permission")
+                return
+            end
+            commands.handleSlay(playerState, rest)
         elseif cmd == 'time' then
             commands.handleCurrentTime(playerState)
         elseif cmd == "help" then
-            commands.sendSystemAnnounce(PlayerController, "!give PlayerName item:amount | !exp PlayerName amount | !fly enable/disable | !noclip enable/disable | !godmode enable/disable | !spectate | !announce msg | !settime 0-23 | !giveme item:amount | !giveexp amount | !time | !unstuck")
+            commands.sendSystemAnnounce(PlayerController, "!give PlayerName item:amount | !exp PlayerName amount | !slay PlayerName | !fly enable/disable | !noclip enable/disable | !godmode enable/disable | !spectate | !announce msg | !settime 0-23 | !giveme item:amount | !giveexp amount | !time | !unstuck")
         elseif cmd == "unstuck" then
             commands.handleUnstuck(playerState)
         end

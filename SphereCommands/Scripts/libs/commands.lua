@@ -24,6 +24,20 @@ function commands.sendPersonalLog(playerController, msg)
     end
 end
 
+function commands.findPlayerControllerByName(name)
+	local allPlayers = FindAllOf("PalPlayerController")
+	for _, pc in ipairs(allPlayers) do
+		if pc and pc:IsValid() then
+			local state = pc.PlayerState
+			if state and state:IsValid() then
+				if state.PlayerNamePrivate:ToString() == name then
+					return pc
+				end
+			end
+		end
+	end
+end
+
 function commands.IsServerSide()
     return PalUtilities and PalUtilities:IsValid() and PalUtilities:IsDedicatedServer(PalUtilities)
 end
@@ -349,6 +363,17 @@ function commands.handleCurrentTime(playerState)
 
 	local timeStr = timeManager:GetDebugTimeString():ToString()
 	commands.sendSystemAnnounce(PlayerController, "Current Game Time: " .. timeStr)
+end
+
+function commands.handleSlay(playerState, rest)
+    local PlayerController = commands.findPlayerControllerByName(rest)
+    if not PlayerController or not PlayerController:IsValid() then
+        commands.sendSystemAnnounce(playerState:GetPlayerController(), "Player not found.")
+        return
+    end
+
+    PlayerController:SelfKillPlayer()
+    commands.sendSystemAnnounce(playerState:GetPlayerController(), rest .. " has been killed.")
 end
 
 return commands
