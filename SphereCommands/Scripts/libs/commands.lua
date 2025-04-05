@@ -376,4 +376,53 @@ function commands.handleSlay(playerState, rest)
     commands.sendSystemAnnounce(playerState:GetPlayerController(), rest .. " has been killed.")
 end
 
+function commands.handleGoto(playerState, rest)
+    local PlayerController = playerState:GetPlayerController()
+    local Character = PlayerController and PlayerController.Pawn
+    if not Character or not Character:IsValid() then return end
+
+    if rest and rest:find(",") then
+        local x, y, z = rest:match("([^,]+),([^,]+),([^,]+)")
+        if x and y and z then
+            local vec = { X = tonumber(x), Y = tonumber(y), Z = tonumber(z) + 500 }
+            local quat = { X = 0, Y = 0, Z = 0, W = 0 }
+            local palUtility = StaticFindObject("/Script/Pal.Default__PalUtility")
+            palUtility:TeleportAroundLoccation(Character, vec, quat)
+            commands.sendSystemAnnounce(PlayerController, string.format("Teleported to [%s, %s, %s]", x, y, z))
+        else
+            commands.sendSystemAnnounce(PlayerController, "Invalid format. Use: !goto x,y,z")
+        end
+    else
+        commands.sendSystemAnnounce(PlayerController, "Usage: !goto x,y,z")
+    end
+end
+
+-- Thanks Mathayus for this kick method
+function commands.handleKick(playerState, rest)
+    local PlayerController = playerState:GetPlayerController()
+    if not rest or rest == "" then
+        commands.sendSystemAnnounce(PlayerController, "Usage: !kick <name>")
+        return
+    end
+
+    local targetName = rest:lower()
+    for _, state in ipairs(FindAllOf("PalPlayerState") or {}) do
+        if state and state:IsValid() then
+            local name = state.PlayerNamePrivate:ToString():lower()
+            if name == targetName then
+                local controller = state:GetPlayerController()
+                if controller and controller:IsValid() then
+                    controller:ClientTravelInternal("Void", 0, false, nil)
+                    commands.sendSystemAnnounce(PlayerController, "Player " .. rest .. " has been kicked.")
+                else
+                    commands.sendSystemAnnounce(PlayerController, "Could not find valid controller.")
+                end
+                return
+            end
+        end
+    end
+
+    commands.sendSystemAnnounce(PlayerController, "Player not found.")
+end
+
 return commands
