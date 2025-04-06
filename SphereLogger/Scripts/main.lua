@@ -10,7 +10,19 @@ local function GetPalUtility()
 end
 
 local log_folder = "sphere"
-os.execute(string.format("mkdir %s", log_folder))
+os.execute("mkdir " .. log_folder)
+
+local function GetCurrentTimestamp()
+    return os.date("%d/%m/%Y %H:%M:%S")
+end
+
+local function LogToFile(filename, line)
+    local fileHandler = io.open(log_folder .. "/" .. filename, "a")
+    if fileHandler then
+        fileHandler:write(string.format("[%s] %s\n", GetCurrentTimestamp(), line))
+        fileHandler:close()
+    end
+end
 
 local function GetPlayerName(ps)
     if ps and ps:IsValid() and ps.PlayerNamePrivate and ps.PlayerNamePrivate.ToString then
@@ -79,19 +91,15 @@ function Logger.ChatLogs(playerState, chatMessage)
         categoryText = "[Say]"
     end
     local logLine = string.format("%s %s: %s", categoryText, senderName, messageText)
-    local fileHandler = io.open("sphere/chatlog.txt", "a")
-    if fileHandler then
-        fileHandler:write(logLine .. "\n")
-        fileHandler:close()
-    end
+    LogToFile("chatlog.txt", logLine)
 end
 
 function Logger.DeathLogs(deadInfo, context)
     GetPalUtility()
     local victim = deadInfo and deadInfo.SelfActor
     local attacker = deadInfo and deadInfo.LastAttacker
-    if not (victim and attacker and victim:IsValid() and attacker:IsValid()) then 
-        return 
+    if not (victim and attacker and victim:IsValid() and attacker:IsValid()) then
+        return
     end
     local victimType = GetEntityType(victim)
     local attackerType = GetEntityType(attacker)
@@ -109,14 +117,10 @@ function Logger.DeathLogs(deadInfo, context)
         deathMessage = string.format("%s killed a %s (%s)", attackerName, victimName, victimType)
     end
 
-    if config.BroadcastDeaths == true then
-        SendAnnounce(context, deathMessage)
-    end
+    LogToFile("deaths.txt", deathMessage)
 
-    local fileHandler = io.open("sphere/deaths.txt", "a")
-    if fileHandler then
-        fileHandler:write(deathMessage .. "\n")
-        fileHandler:close()
+    if config.BroadcastDeaths and victimType == "Player" then
+        SendAnnounce(context, deathMessage)
     end
 end
 
@@ -125,15 +129,11 @@ function Logger.ConnectLogs(character)
         local name = GetPlayerName(character.PlayerState)
         playerName[character:GetFullName()] = name
 
-        local connectMessage = string.format("%s has connected.", name)
-        local fileHandler = io.open("sphere/connections.txt", "a")
-        if fileHandler then
-            fileHandler:write(connectMessage .. "\n")
-            fileHandler:close()
-        end
+        local message = string.format("%s has connected.", name)
+        LogToFile("connections.txt", message)
 
-        if config.BroadcastConnects == true then
-            SendAnnounce(character, connectMessage)
+        if config.BroadcastConnects then
+            SendAnnounce(character, message)
         end
     end
 end
@@ -141,19 +141,24 @@ end
 function Logger.DisconnectLogs(character)
     if character and character:IsValid() then
         local name = playerName[character:GetFullName()] or "Unknown"
-        local disconnectMessage = string.format("%s has disconnected.", name)
+        local message = string.format("%s has disconnected.", name)
+        LogToFile("connections.txt", message)
 
-        local fileHandler = io.open("sphere/connections.txt", "a")
-        if fileHandler then
-            fileHandler:write(disconnectMessage .. "\n")
-            fileHandler:close()
-        end
-
-        if config.BroadcastDisconnects == true then
-            SendAnnounce(character, disconnectMessage)
+        if config.BroadcastDisconnects then
+            SendAnnounce(character, message)
         end
 
         playerName[character:GetFullName()] = nil
+    end
+end
+
+function Logger.CaptureLogs()
+    for _, player in ipairs(FindAllOf("PalPlayerCharacter") or {}) do
+        if player and player:IsValid() and player.PlayerState and player.PlayerState:IsValid() then
+            local name = player.PlayerState.PlayerNamePrivate:ToString()
+            LogToFile("captures.txt", string.format("%s captured a Pal.", name))
+            break
+        end
     end
 end
 
@@ -177,6 +182,12 @@ end)
 RegisterHook("/Game/Pal/Blueprint/Character/Player/Female/BP_Player_Female.BP_Player_Female_C:ReceiveEndPlay", function(ctx)
     local player = ctx:get()
     Logger.DisconnectLogs(player)
+end)
+
+ExecuteWithDelay(3000, function()
+    RegisterHook("/Game/Pal/Blueprint/Weapon/Other/NewPalSphere/BP_PalSphere_Body.BP_PalSphere_Body_C:CaptureSuccessEvent", function()
+        Logger.CaptureLogs()
+    end)
 end)
 
 return Logger
