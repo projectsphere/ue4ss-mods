@@ -164,52 +164,42 @@ end
 function commands.handleGiveCommand(playerState, rest)
 	local senderController = playerState:GetPlayerController()
 	if not rest or rest == "" then
-		commands.sendSystemAnnounce(senderController, "Usage: !give <name> item[:amount] [item2[:amount] ...]")
+		commands.sendSystemAnnounce(senderController, "Usage: !give <name> item:amount item2:amount")
 		return
 	end
 
-	local args = {}
-	for word in rest:gmatch("%S+") do
-		table.insert(args, word)
-	end
-
-	if #args < 2 then
-		commands.sendSystemAnnounce(senderController, "Usage: !give <name> item[:amount] [item2[:amount] ...]")
-		return
-	end
-
-	local targetName = args[1]
 	local palUtility = StaticFindObject("/Script/Pal.Default__PalUtility")
 	local world = FindFirstOf("World")
 	local playerList = palUtility:GetPlayerListDisplayMessages(world)
 	local targetController = nil
+	local targetName = nil
+	local remaining = nil
 
 	if playerList then
 		for i = 1, #playerList do
 			local info = playerList[i]:get():ToString()
 			local name = info:match("^(.-),")
-			if name == targetName then
+			if name and rest:sub(1, #name) == name and rest:sub(#name + 1, #name + 1) == " " then
+				targetName = name
+				remaining = rest:sub(#name + 2)
 				local playerChar = palUtility:GetPlayerCharacterByPlayerIndex(world, i - 1)
 				if playerChar and playerChar:IsValid() then
 					targetController = playerChar:GetPalPlayerController()
-					break
 				end
+				break
 			end
 		end
 	end
 
-	if not targetController then
+	if not targetController or not remaining then
 		commands.sendSystemAnnounce(senderController, "Player not found.")
 		return
 	end
 
 	local targetState = targetController.PlayerState
-
-	for i = 2, #args do
-		local item = args[i]
-		local qty = 1
+	for item in remaining:gmatch("%S+") do
 		local name = item
-
+		local qty = 1
 		if item:find(":") then
 			name, qty = string.match(item, "^(.*):(%d+)$")
 			qty = tonumber(qty) or 1
@@ -227,44 +217,37 @@ function commands.handleExpCommand(playerState, rest)
 		return
 	end
 
-	local args = {}
-	for word in rest:gmatch("%S+") do
-		table.insert(args, word)
-	end
-
-	if #args < 2 then
-		commands.sendSystemAnnounce(senderController, "Usage: !exp <name> <amount>")
-		return
-	end
-
-	local targetName = args[1]
-	local amount = tonumber(args[2])
-	if not amount then
-		commands.sendSystemAnnounce(senderController, "Invalid amount.")
-		return
-	end
-
 	local palUtility = StaticFindObject("/Script/Pal.Default__PalUtility")
 	local world = FindFirstOf("World")
 	local playerList = palUtility:GetPlayerListDisplayMessages(world)
 	local targetController = nil
+	local targetName = nil
+	local remaining = nil
 
 	if playerList then
 		for i = 1, #playerList do
 			local info = playerList[i]:get():ToString()
 			local name = info:match("^(.-),")
-			if name == targetName then
+			if name and rest:sub(1, #name) == name and rest:sub(#name + 1, #name + 1) == " " then
+				targetName = name
+				remaining = rest:sub(#name + 2)
 				local playerChar = palUtility:GetPlayerCharacterByPlayerIndex(world, i - 1)
 				if playerChar and playerChar:IsValid() then
 					targetController = playerChar:GetPalPlayerController()
-					break
 				end
+				break
 			end
 		end
 	end
 
-	if not targetController then
+	if not targetController or not remaining then
 		commands.sendSystemAnnounce(senderController, "Player not found.")
+		return
+	end
+
+	local amount = tonumber(remaining)
+	if not amount then
+		commands.sendSystemAnnounce(senderController, "Invalid amount.")
 		return
 	end
 
@@ -276,7 +259,7 @@ end
 function commands.handlePersonalGive(playerState, rest)
 	local PlayerController = playerState:GetPlayerController()
 	if not rest or rest == "" then
-		commands.sendSystemAnnounce(PlayerController, "Usage: !give item[:amount] [item2[:amount] ...]")
+		commands.sendSystemAnnounce(PlayerController, "Usage: !give item:amount item2:amount")
 		return
 	end
 
@@ -296,7 +279,7 @@ function commands.handlePersonalExp(playerState, rest)
 	local PlayerController = playerState:GetPlayerController()
 	local amount = tonumber(rest)
 	if not amount then
-		commands.sendSystemAnnounce(PlayerController, "Usage: !exp <amount>")
+		commands.sendSystemAnnounce(PlayerController, "Usage: !giveexp <amount>")
 		return
 	end
 	commands.giveExperience(playerState, amount)
@@ -366,14 +349,30 @@ function commands.handleCurrentTime(playerState)
 end
 
 function commands.handleSlay(playerState, rest)
-    local PlayerController = commands.findPlayerControllerByName(rest)
-    if not PlayerController or not PlayerController:IsValid() then
-        commands.sendSystemAnnounce(playerState:GetPlayerController(), "Player not found.")
-        return
-    end
+	local PlayerController = playerState:GetPlayerController()
+	if not rest or rest == "" then
+		commands.sendSystemAnnounce(PlayerController, "Usage: !slay <name>")
+		return
+	end
 
-    PlayerController:SelfKillPlayer()
-    commands.sendSystemAnnounce(playerState:GetPlayerController(), rest .. " has been killed.")
+	local targetName = rest:lower()
+	for _, state in ipairs(FindAllOf("PalPlayerState") or {}) do
+		if state and state:IsValid() then
+			local name = state.PlayerNamePrivate:ToString():lower()
+			if name == targetName then
+				local controller = state:GetPlayerController()
+				if controller and controller:IsValid() then
+					controller:SelfKillPlayer()
+					commands.sendSystemAnnounce(PlayerController, rest .. " has been killed.")
+				else
+					commands.sendSystemAnnounce(PlayerController, "Could not find valid controller.")
+				end
+				return
+			end
+		end
+	end
+
+	commands.sendSystemAnnounce(PlayerController, "Player not found.")
 end
 
 function commands.handleGoto(playerState, rest)
@@ -408,12 +407,12 @@ function commands.handleKick(playerState, rest)
     local targetName = rest:lower()
     for _, state in ipairs(FindAllOf("PalPlayerState") or {}) do
         if state and state:IsValid() then
-            local name = state.PlayerNamePrivate:ToString():lower()
-            if name == targetName then
+            local name = state.PlayerNamePrivate:ToString()
+            if name and name:lower() == targetName then
                 local controller = state:GetPlayerController()
                 if controller and controller:IsValid() then
                     controller:ClientTravelInternal("Void", 0, false, nil)
-                    commands.sendSystemAnnounce(PlayerController, "Player " .. rest .. " has been kicked.")
+                    commands.sendSystemAnnounce(PlayerController, "Player " .. name .. " has been kicked.")
                 else
                     commands.sendSystemAnnounce(PlayerController, "Could not find valid controller.")
                 end
