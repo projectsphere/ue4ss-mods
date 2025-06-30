@@ -1,11 +1,8 @@
 local PalUtilities = StaticFindObject("/Script/Pal.Default__PalUtility")
 local logMgr = FindFirstOf("BP_PalLogManager_C")
 local FGuid = require("util/fguid")
-
-local godmodePlayers = {}
 local noclipPlayers = {}
 local flyModePlayers = {}
-
 local commands = {}
 
 function commands.sendSystemAnnounce(PalPlayerController, Message)
@@ -42,20 +39,6 @@ function commands.IsServerSide()
     return PalUtilities and PalUtilities:IsValid() and PalUtilities:IsDedicatedServer(PalUtilities)
 end
 
-function commands.spawnItem(playerState, item)
-    local quantity = 1
-    if string.find(item, ":") then
-        item, quantity = string.match(item, "(.*):(.*)")
-    end
-
-    local inventory = playerState:GetInventoryData()
-    if commands.IsServerSide() then
-        inventory:AddItem_ServerInternal(FName(item), quantity, false)
-    else
-        inventory:RequestAddItem(FName(item), quantity, false)
-    end
-end
-
 function commands.giveExperience(playerState, quantity)
     local PlayerController = playerState:GetPlayerController()
     local PlayerCharacter = PlayerController and PlayerController.Pawn
@@ -81,26 +64,6 @@ function commands.BroadcastServerMessage(message)
     local gameStateInstance = FindFirstOf("PalGameStateInGame")
     if gameStateInstance and gameStateInstance:IsValid() then
         gameStateInstance:BroadcastServerNotice(message)
-    end
-end
-
-function commands.IsGodmodeEnabled(playerId)
-    return godmodePlayers[playerId] == true
-end
-
-function commands.toggleGodmode(playerState, arg)
-    local playerId = playerState:GetPlayerId()
-    if not playerId then return end
-    local PlayerController = playerState:GetPlayerController()
-
-    if arg == "enable" then
-        godmodePlayers[playerId] = true
-        commands.sendSystemAnnounce(PlayerController, "Godmode enabled.")
-    elseif arg == "disable" then
-        godmodePlayers[playerId] = nil
-        commands.sendSystemAnnounce(PlayerController, "Godmode disabled.")
-    else
-        commands.sendSystemAnnounce(PlayerController, "Usage: !godmode enable | disable")
     end
 end
 
@@ -422,6 +385,84 @@ function commands.handleKick(playerState, rest)
     end
 
     commands.sendSystemAnnounce(PlayerController, "Player not found.")
+end
+
+-- If you're one of the people stealing this code, please give credit.
+function commands.handleSpawnPal(playerState, rest)
+    local PlayerController = playerState:GetPlayerController()
+    if not rest or rest == "" then
+        commands.sendSystemAnnounce(PlayerController, "Usage: !spawn <PalAssetName>")
+        return
+    end
+
+    local assetName = rest:match("^(%S+)$")
+    if not assetName then
+        commands.sendSystemAnnounce(PlayerController, "Invalid Pal asset name.")
+        return
+    end
+
+    local playerChar = PlayerController and PlayerController.Pawn
+    if not (playerChar and playerChar:IsValid()) then
+        commands.sendSystemAnnounce(PlayerController, "Could not find your character.")
+        return
+    end
+    local pLoc = playerChar:K2_GetActorLocation()
+
+    local nearest, bestD2
+    for _, sp in ipairs(FindAllOf("BP_PalSpawner_Standard_C") or {}) do
+        local loc = sp.BattleStartLocation
+        local dx, dy, dz = loc.X - pLoc.X, loc.Y - pLoc.Y, loc.Z - pLoc.Z
+        local d2 = dx*dx + dy*dy + dz*dz
+        if not bestD2 or d2 < bestD2 then
+            nearest, bestD2 = sp, d2
+        end
+    end
+    if not nearest then
+        commands.sendSystemAnnounce(PlayerController, "No spawner found nearby.")
+        return
+    end
+
+    local entry = nearest.SpawnGroupList[1].PalList[1]
+    local oldPalKey = entry.PalID.Key
+    local oldNpcKey = entry.NPCID.Key
+    local oldLevel = entry.Level
+    local oldLevelMax = entry.Level_Max
+    local oldNum = entry.Num
+    local oldNumMax = entry.Num_Max
+
+    entry.PalID.Key = FName(assetName)
+    entry.NPCID.Key = FName("None")
+    entry.Level = 1
+    entry.Level_Max = 1
+    entry.Num = 1
+    entry.Num_Max = 1
+
+    nearest:SpawnRequest_ByOutside(true)
+
+    entry.PalID.Key = oldPalKey
+    entry.NPCID.Key = oldNpcKey
+    entry.Level = oldLevel
+    entry.Level_Max = oldLevelMax
+    entry.Num = oldNum
+    entry.Num_Max = oldNumMax
+
+    commands.sendSystemAnnounce(PlayerController, string.format("Spawned %s at your position.", assetName))
+end
+
+function commands.handleGetPos(playerState)
+    local pc = playerState:GetPlayerController()
+    local char = pc and pc.Pawn
+    if not (char and char:IsValid()) then
+        commands.sendSystemAnnounce(pc, "Could not find your character.")
+        return
+    end
+    local loc = { X = 0, Y = 0, Z = 0 }
+    local ok = StaticFindObject("/Script/Pal.Default__PalUtility"):TryGetHeadWorldPosition(char, loc)
+    if ok then
+        commands.sendSystemAnnounce(pc, string.format("Location: X=%.1f, Y=%.1f, Z=%.1f", loc.X, loc.Y, loc.Z))
+    else
+        commands.sendSystemAnnounce(pc, "Unable to get position.")
+    end
 end
 
 return commands

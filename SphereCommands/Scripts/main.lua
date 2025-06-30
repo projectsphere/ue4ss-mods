@@ -1,8 +1,6 @@
 local UEHelpers = require("UEHelpers")
-local commands = require("libs/commands")
-local logic = require("libs/logic")
-local logMgr = FindFirstOf("BP_PalLogManager_C")
--- RegisterHook("/Script/Pal.PalPlayerController:DamageReactionComponent_ProcessDamage_ToServer_ToSelfPlayer", logic.damageHook)
-RegisterHook("/Script/Pal.PalDamageReactionComponent:ApplyDamageForHP", logic.healthHook)
-RegisterHook("/Script/Pal.PalStatusComponent:AddStatus_ToServer", logic.statusHook)
+local commands  = require("libs/commands")
+local logic     = require("libs/logic")
+local logMgr    = FindFirstOf("BP_PalLogManager_C")
+
 RegisterHook("/Script/Pal.PalPlayerState:EnterChat_Receive", logic.chatHook)
