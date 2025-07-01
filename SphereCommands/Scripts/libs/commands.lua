@@ -39,6 +39,20 @@ function commands.IsServerSide()
     return PalUtilities and PalUtilities:IsValid() and PalUtilities:IsDedicatedServer(PalUtilities)
 end
 
+function commands.spawnItem(playerState, item)
+    local quantity = 1
+    if string.find(item, ":") then
+        item, quantity = string.match(item, "(.*):(.*)")
+    end
+
+    local inventory = playerState:GetInventoryData()
+    if commands.IsServerSide() then
+        inventory:AddItem_ServerInternal(FName(item), quantity, false, 0)
+    else
+        inventory:RequestAddItem(FName(item), quantity, false)
+    end
+end
+
 function commands.giveExperience(playerState, quantity)
     local PlayerController = playerState:GetPlayerController()
     local PlayerCharacter = PlayerController and PlayerController.Pawn
