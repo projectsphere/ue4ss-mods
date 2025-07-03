@@ -368,9 +368,37 @@ function commands.handleGoto(playerState, rest)
         else
             commands.sendSystemAnnounce(PlayerController, "Invalid format. Use: !goto x,y,z")
         end
-    else
-        commands.sendSystemAnnounce(PlayerController, "Usage: !goto x,y,z")
+        return
     end
+
+    if rest and rest ~= "" then
+        local targetName = rest:lower()
+        for _, state in ipairs(FindAllOf("PalPlayerState") or {}) do
+            if state and state:IsValid() then
+                local name = state.PlayerNamePrivate:ToString():lower()
+                if name == targetName then
+                    local targetPC = state:GetPlayerController()
+                    local targetChar = targetPC and targetPC.Pawn
+                    if targetChar and targetChar:IsValid() then
+                        local loc = { X = 0, Y = 0, Z = 0 }
+                        local ok = StaticFindObject("/Script/Pal.Default__PalUtility"):TryGetHeadWorldPosition(targetChar, loc)
+                        if ok then
+                            loc.Z = loc.Z + 500
+                            local quat = { X = 0, Y = 0, Z = 0, W = 0 }
+                            StaticFindObject("/Script/Pal.Default__PalUtility"):TeleportAroundLoccation(Character, loc, quat)
+                            commands.sendSystemAnnounce(PlayerController, "Teleported to " .. rest)
+                            return
+                        end
+                    end
+                end
+            end
+        end
+
+        commands.sendSystemAnnounce(PlayerController, "Player not found: " .. rest)
+        return
+    end
+
+    commands.sendSystemAnnounce(PlayerController, "Usage: !goto x,y,z or !goto PlayerName")
 end
 
 -- Thanks Mathayus for this kick method
@@ -473,10 +501,44 @@ function commands.handleGetPos(playerState)
     local loc = { X = 0, Y = 0, Z = 0 }
     local ok = StaticFindObject("/Script/Pal.Default__PalUtility"):TryGetHeadWorldPosition(char, loc)
     if ok then
-        commands.sendSystemAnnounce(pc, string.format("Location: X=%.1f, Y=%.1f, Z=%.1f", loc.X, loc.Y, loc.Z))
+        commands.sendSystemAnnounce(pc, string.format("Location: %.1f, %.1f, %.1f", loc.X, loc.Y, loc.Z))
     else
         commands.sendSystemAnnounce(pc, "Unable to get position.")
     end
+end
+
+function commands.handlePlayerGetPos(playerState, rest)
+    local senderPC = playerState:GetPlayerController()
+    if not rest or rest == "" then
+        commands.sendSystemAnnounce(senderPC, "Usage: !getpos <PlayerName>")
+        return
+    end
+
+    local targetName = rest:lower()
+    for _, state in ipairs(FindAllOf("PalPlayerState") or {}) do
+        if state and state:IsValid() then
+            local name = state.PlayerNamePrivate:ToString()
+            if name:lower() == targetName then
+                local targetPC = state:GetPlayerController()
+                local targetChar = targetPC and targetPC.Pawn
+                if targetChar and targetChar:IsValid() then
+                    local loc = { X = 0, Y = 0, Z = 0 }
+                    local success = StaticFindObject("/Script/Pal.Default__PalUtility"):TryGetHeadWorldPosition(targetChar, loc)
+                    if success then
+                        commands.sendSystemAnnounce(senderPC, string.format("%s's Location: %.1f, %.1f, %.1f", name, loc.X, loc.Y, loc.Z))
+                    else
+                        commands.sendSystemAnnounce(senderPC, "Unable to get position.")
+                    end
+                    return
+                else
+                    commands.sendSystemAnnounce(senderPC, "Could not find target's character.")
+                    return
+                end
+            end
+        end
+    end
+
+    commands.sendSystemAnnounce(senderPC, "Player not found.")
 end
 
 return commands

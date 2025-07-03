@@ -1,6 +1,2 @@
-local UEHelpers = require("UEHelpers")
-local commands  = require("libs/commands")
 local logic     = require("libs/logic")
-local logMgr    = FindFirstOf("BP_PalLogManager_C")
-
 RegisterHook("/Script/Pal.PalPlayerState:EnterChat_Receive", logic.chatHook)
