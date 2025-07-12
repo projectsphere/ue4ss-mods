@@ -55,13 +55,20 @@ function Logger.ChatLogs(playerState, chatMessage)
     local category = chatMessage.Category
     local messageText = chatMessage.Message:ToString()
     local categoryText = "Undefined"
+
     if category == 1 then
         categoryText = "[Global]"
-    elseif category == 2 then
-        categoryText = "[Guild]"
+        if config.chatLogLevel < 1 then return end
     elseif category == 3 then
         categoryText = "[Say]"
+        if config.chatLogLevel < 2 then return end
+    elseif category == 2 then
+        categoryText = "[Guild]"
+        if config.chatLogLevel < 3 then return end
+    else
+        return
     end
+
     local logLine = string.format("%s %s: %s", categoryText, senderName, messageText)
     LogToFile("chatlog.txt", logLine)
     SendWebhook(config.chatWebhook, logLine)
@@ -75,12 +82,11 @@ function Logger.DeathLogs(deadInfo, context)
     local attacker = deadInfo.LastAttacker
     if not (victim:IsValid() and attacker:IsValid()) then return end
 
-    local victimName = "Unknown"
-    if victim.PlayerState and victim.PlayerState:IsValid() then
-        victimName = GetPlayerName(victim.PlayerState)
-    end
+    if not (victim.PlayerState and victim.PlayerState:IsValid()) then return end
+    local victimName = GetPlayerName(victim.PlayerState)
+    if not victimName or victimName == "" then return end
 
-    local attackerName = "Unknown"
+    local attackerName = nil
     if palUtility:IsOtomo(attacker) then
         local owner = palUtility:GetOtomoPlayerCharacter(attacker)
         if owner and owner:IsValid() and owner.PlayerState and owner.PlayerState:IsValid() then
@@ -89,14 +95,13 @@ function Logger.DeathLogs(deadInfo, context)
     elseif attacker.PlayerState and attacker.PlayerState:IsValid() then
         attackerName = GetPlayerName(attacker.PlayerState)
     end
+    if not attackerName or attackerName == "" then return end
 
     local deathMessage = ""
     if victimName == attackerName then
         deathMessage = string.format("%s committed suicide!", victimName)
-    elseif attackerName ~= "Unknown" then
-        deathMessage = string.format("%s was killed by %s", victimName, attackerName)
     else
-        return
+        deathMessage = string.format("%s was killed by %s", victimName, attackerName)
     end
 
     LogToFile("deaths.txt", deathMessage)
