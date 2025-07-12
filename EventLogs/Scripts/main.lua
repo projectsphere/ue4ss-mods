@@ -9,7 +9,7 @@ local function GetPalUtility()
     end
 end
 
-local log_folder = "sphere"
+local log_folder = "eventlogs"
 os.execute("mkdir " .. log_folder)
 
 local function GetCurrentTimestamp()
@@ -39,42 +39,14 @@ local function SendAnnounce(ctx, msg)
     end
 end
 
-local function GetEntityType(actor)
-    GetPalUtility()
-    if not actor then return "Undefined" end
-    if palUtility:IsOtomo(actor) then
-        return "Otomo"
-    elseif type(actor.PlayerCameraYaw) == "number" then
-        return "Player"
-    elseif palUtility:IsBaseCampPal(actor) then
-        return "BaseCampPal"
-    elseif palUtility:IsPalMonster(actor) then
-        return "WildPal"
-    elseif palUtility:IsWildNPC(actor) then
-        return "NPC"
-    elseif actor.bIsPlayer then
-        return "Player"
-    else
-        return "Unknown"
-    end
-end
-
-local function GetEntityName(actor, entityType)
-    if entityType == "Player" then
-        return GetPlayerName(actor.PlayerState)
-    elseif entityType == "Otomo" or entityType == "WildPal" or entityType == "BaseCampPal" then
-        local charComp = actor.CharacterParameterComponent
-        if charComp and charComp:IsValid() then
-            local individualParam = charComp:GetIndividualParameter()
-            if individualParam and individualParam:IsValid() then
-                return individualParam:GetCharacterID():ToString()
-            end
-        end
-        return "Pal"
-    elseif entityType == "NPC" then
-        return "NPC"
-    else
-        return "Unknown"
+local function SendWebhook(url, message)
+    if url and url ~= "" then
+        local escaped = message:gsub('"', '\\"')
+        local cmd = string.format(
+            'curl -s -H "Content-Type: application/json" -X POST -d "{\\"content\\": \\"%s\\"}" "%s"',
+            escaped, url
+        )
+        os.execute(cmd)
     end
 end
 
@@ -92,34 +64,45 @@ function Logger.ChatLogs(playerState, chatMessage)
     end
     local logLine = string.format("%s %s: %s", categoryText, senderName, messageText)
     LogToFile("chatlog.txt", logLine)
+    SendWebhook(config.chatWebhook, logLine)
 end
 
 function Logger.DeathLogs(deadInfo, context)
     GetPalUtility()
-    local victim = deadInfo and deadInfo.SelfActor
-    local attacker = deadInfo and deadInfo.LastAttacker
-    if not (victim and attacker and victim:IsValid() and attacker:IsValid()) then
-        return
-    end
-    local victimType = GetEntityType(victim)
-    local attackerType = GetEntityType(attacker)
-    local victimName = GetEntityName(victim, victimType)
-    local attackerName = GetEntityName(attacker, attackerType)
-    local deathMessage = ""
+    if not (deadInfo and deadInfo.SelfActor and deadInfo.LastAttacker) then return end
 
-    if victimType == "Player" then
-        if attackerType == "Player" and attackerName == victimName then
-            deathMessage = string.format("%s committed suicide!", victimName)
-        else
-            deathMessage = string.format("%s was killed by %s (%s)", victimName, attackerName, attackerType)
+    local victim = deadInfo.SelfActor
+    local attacker = deadInfo.LastAttacker
+    if not (victim:IsValid() and attacker:IsValid()) then return end
+
+    local victimName = "Unknown"
+    if victim.PlayerState and victim.PlayerState:IsValid() then
+        victimName = GetPlayerName(victim.PlayerState)
+    end
+
+    local attackerName = "Unknown"
+    if palUtility:IsOtomo(attacker) then
+        local owner = palUtility:GetOtomoPlayerCharacter(attacker)
+        if owner and owner:IsValid() and owner.PlayerState and owner.PlayerState:IsValid() then
+            attackerName = GetPlayerName(owner.PlayerState)
         end
+    elseif attacker.PlayerState and attacker.PlayerState:IsValid() then
+        attackerName = GetPlayerName(attacker.PlayerState)
+    end
+
+    local deathMessage = ""
+    if victimName == attackerName then
+        deathMessage = string.format("%s committed suicide!", victimName)
+    elseif attackerName ~= "Unknown" then
+        deathMessage = string.format("%s was killed by %s", victimName, attackerName)
     else
-        deathMessage = string.format("%s killed a %s (%s)", attackerName, victimName, victimType)
+        return
     end
 
     LogToFile("deaths.txt", deathMessage)
+    SendWebhook(config.deathWebhook, deathMessage)
 
-    if config.BroadcastDeaths and victimType == "Player" then
+    if config.BroadcastDeaths and victim.PlayerState and victim.PlayerState:IsValid() then
         SendAnnounce(context, deathMessage)
     end
 end
@@ -131,6 +114,7 @@ function Logger.ConnectLogs(character)
 
         local message = string.format("%s has connected.", name)
         LogToFile("connections.txt", message)
+        SendWebhook(config.connectionWebhook, message)
 
         if config.BroadcastConnects then
             SendAnnounce(character, message)
@@ -143,6 +127,7 @@ function Logger.DisconnectLogs(character)
         local name = playerName[character:GetFullName()] or "Unknown"
         local message = string.format("%s has disconnected.", name)
         LogToFile("connections.txt", message)
+        SendWebhook(config.connectionWebhook, message)
 
         if config.BroadcastDisconnects then
             SendAnnounce(character, message)
